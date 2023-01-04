@@ -1,0 +1,115 @@
+module DA.Text.Darsec.Prim
+
+  (
+    many
+  , many1
+  , scan
+  , parse
+  , parseOpt
+  , skipMany
+  , skipMany1
+  , try'
+  , Parser(..)
+  , Reply(..)
+  , Consumed(..)
+  )
+where
+
+import           Prelude                 hiding ( takeWhile )
+import           DA.MonadPlus
+import           DA.Alternative
+import           DA.Action                      ( void )
+
+data Parser s = Parser
+  { unP : Text -> Consumed s
+  }
+
+data Consumed a = Consumed (Reply a) | Empty (Reply a) deriving (Show, Eq)
+
+data Reply a = Ok {result  : a, remain :  Text} | Error deriving (Show, Eq)
+
+returnP : s -> Parser s
+returnP x = Parser $ \input -> Empty (Ok x input)
+
+many : (Alternative f, Action f) => f a -> f [a]
+many p = scan p identity
+
+scan : (Alternative f, Action f) => f a1 -> ([a1] -> a2) -> f a2
+scan p f =
+  do
+      x <- p
+      scan p (\tail -> f (x :: tail))
+    <|> return (f [])
+
+many1 : Parser a -> Parser [a]
+many1 p = do
+    x <- p;
+    xs <- (many1 p <|> return [])
+    return (x::xs)
+
+skipMany : Parser a -> Parser()
+skipMany = void . many
+
+skipMany1 : Parser a -> Parser ()
+skipMany1 = void . many1
+
+bind: Parser a -> (a -> Parser b) -> Parser b
+bind pb f = Parser $ \input -> case (p input) of
+  Empty reply1 -> case reply1 of
+    Ok x rest -> (unP (f x) rest)
+    Error     -> Empty Error
+  Consumed reply1 -> Consumed
+    (case reply1 of
+      Ok x rest -> case (unP (f x) rest) of
+        Consumed reply2 -> reply2
+        Empty    reply2 -> reply2
+      e12 -> Error
+    )
+  where p = unP pb
+
+instance Applicative Parser where
+  pure = returnP
+  (<*>) = ap
+
+instance Action Parser where
+ (>>=) = bind
+
+instance MonadPlus Parser where
+    mzero = parserZero
+    mplus p1 p2 = parserPlus p1 p2
+
+parserPlus : Parser a -> Parser a -> Parser a
+parserPlus p q = Parser $ \input -> case unP p $ input of
+  Empty Error -> unP q $ input
+  Empty ok    -> case unP q $ input of
+    Empty _  -> Empty ok
+    consumed -> consumed
+  consumed -> consumed
+
+parserZero : Parser s
+parserZero = Parser $ const (Empty Error)
+
+instance Alternative Parser where
+    empty = mzero
+    (<|>) = mplus
+
+parse : Parser s -> Text -> Reply s
+parse p inp = case unP p inp of
+    Consumed a -> a
+    Empty a -> a
+
+parseOpt : Parser a -> Text -> Optional (a, Text)
+parseOpt p inp = case unP p inp of
+  Consumed o@(Ok a b) -> Some (a, b)
+  Consumed Error      -> None
+  Empty    o@(Ok a b) -> Some (a, b)
+  Empty    Error      -> None
+
+try' : Parser a -> Parser a
+try' p = Parser $ \input -> case (unP p $ input) of
+                      Consumed Error -> Empty Error
+                      other -> other
+
+deriving instance Functor Parser
+deriving instance Functor Consumed
+deriving instance Functor Reply

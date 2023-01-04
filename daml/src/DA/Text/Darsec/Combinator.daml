@@ -1,0 +1,40 @@
+module DA.Text.Darsec.Combinator
+    ( --choice
+    -- , count
+    -- , between
+    -- , option, optionMaybe, optional
+      skipMany1
+    , skipMany
+    , many1
+    , sepBy, sepBy1
+    -- , endBy, endBy1
+    -- , sepEndBy, sepEndBy1
+    -- , chainl, chainl1
+    -- , chainr, chainr1
+    -- , eof
+    , notFollowedBy
+
+    -- tricky combinators
+
+    -- , manyTill, lookAhead, anyToken
+    -- , parserTrace, parserTraced
+    ) where
+
+import DA.Text.Darsec.Prim
+import DA.MonadPlus
+import DA.Alternative
+
+choice' : MonadPlus f => [f a] -> f a
+choice' = foldr (<|>) mzero
+
+sepBy1 : (Action f, Alternative f) => f a1 -> f a2 -> f [a1]
+sepBy1 p sep = do{ x <- p
+                 ; xs <- many (sep >> p)
+                 ; return (x::xs)
+                 }
+
+sepBy : (Alternative f, Action f) => f a1 -> f a2 -> f [a1]
+sepBy p sep = sepBy1 p sep <|> return []
+
+notFollowedBy : Parser () -> Parser ()
+notFollowedBy p = try' (try' p <|> return ())

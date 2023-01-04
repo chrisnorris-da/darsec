@@ -1,0 +1,12 @@
+- suggest: {name: Use module export list}
+- suggest: {name: Redundant do}
+- suggest: {name: Redundant pure}
+- suggest: {name: Eta reduce}
+- suggest: {name: Avoid lambda}
+- suggest: {name: Use tuple-section}
+- suggest: {name: Use lambda-case}
+
+- warn: {lhs: "((,) x)", rhs: "(_noParen_ x,)", name: Use tuple-section, note: RequiresExtension TupleSections}
+- warn: {lhs: "flip (,) x", rhs: "(,_noParen_ x)", name: Use tuple-section, note: RequiresExtension TupleSections}
+- warn: {lhs: "\\y -> (x,y)", rhs: "(x,)", name: Use tuple-section, note: RequiresExtension TupleSections}
+- warn: {lhs: "\\y -> (y,x)", rhs: "(,x)", name: Use tuple-section, note: RequiresExtension TupleSections}

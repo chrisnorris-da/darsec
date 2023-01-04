@@ -1,0 +1,21 @@
+# for config file options, refer to
+# https://docs.daml.com/tools/assistant.html#project-config-file-daml-yaml
+
+sdk-version: 2.5.0-snapshot.20221120.10983.0.218a6a8a
+name: darsec
+source: daml
+version: 0.0.1
+dependencies:
+  - daml-prim
+  - daml-stdlib
+  - daml-script
+build-options:
+  - --ghc-option
+  - "-Werror -W \
+     -Wwarn=missing-signatures \
+     -fno-warn-unused-top-binds \
+     -fno-warn-unused-matches \
+     -Wredundant-constraints \
+     -fmax-valid-hole-fits=5 \
+     -frefinement-level-hole-fits=1"
+

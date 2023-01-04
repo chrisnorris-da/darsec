@@ -1,0 +1,9 @@
+module DA.Alternative (
+  module DA.Alternative
+  ) where
+
+infixl 3 <|>
+
+class Applicative f => Alternative f where
+    empty : f a
+    (<|>) : f a -> f a -> f a

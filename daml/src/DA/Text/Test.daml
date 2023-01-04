@@ -1,0 +1,84 @@
+module DA.Text.Test (
+  module DA.Text.Test
+  ) where
+
+import           DA.Assert                      ( (===) )
+import           DA.Text.Darsec                as D
+import           DA.Text                        (implode,  isDigit
+                                                , explode
+                                                )
+
+import           Daml.Script
+
+import Prelude hiding (takeWhile)
+
+vowels : [Text]
+vowels = explode "aeiou"
+
+vowel : Parser Text
+vowel = oneOf vowels
+
+word : Parser [Text]
+word = many1 letter
+
+identifier : Parser [Text]
+identifier = many1 (letter <|> digit <|> (char "_"))
+
+eof : Parser ()
+eof = notFollowedBy ( skipMany $ char "±")
+
+eol : Parser Text
+eol = char "\n"
+
+csvFile : Parser [[Text]]
+csvFile =
+    do result <- many line
+       eof
+       return result
+
+line : Parser [Text]
+line =
+    do result <- cells
+       eol
+       return result
+
+cells : Parser [Text]
+cells =
+    do first <- implode <$> cellContent
+       next <- remainingCells
+       return (first :: next)
+
+remainingCells : Parser [Text]
+remainingCells = (char "," >> cells) <|> (return [])
+
+cellContent : Parser [Text]
+cellContent =
+    many (noneOf [",","\n"])
+
+testCsv : Script ()
+testCsv = script $
+  debug $ parseOpt csvFile "Login email,Identifier,One-time password,Recovery code,First name,Last name,Department,Location\nrachel@example.com,9012,12se74,rb9012,Rachel,Booker,Sales,Manchester\nlaura@example.com,2070,04ap67,lg2070,Laura,Grey,Depot,London\ncraig@example.com,4081,30no86,cj4081,Craig,Johnson,Depot,London\nmary@example.com,9346,14ju73,mj9346,Mary,Jenkins,Engineering,Manchester\njamie@example.com,5079,09ja61,js5079,Jamie,Smith,Engineering,Manchester\n"
+
+
+aa : Script ()
+aa = script
+ do
+  debug $ parseOpt do {x <- many1 (digit <|> letter); space; string "done";return x} "a1b2c3 done"
+
+  parse do {many1 (digit <|> letter); char ";"; many1 $ oneOf (explode "en")} "a12c3;end99"
+   === Ok with result = explode "en"; remain = "d99"
+
+  parse do {takeWhile isDigit} "1212end"
+    === Ok {result = explode "1212", remain = "end"}
+
+  parse do {word; space; word} "one two"
+    === Ok {result = explode "two", remain = ""}
+
+  debug $ parse do {identifier; space; word} "e1_23cal second"
+
+  parse do {sepBy1 digit space} "" === Error
+
+  debug $ parse do {sepBy1 digit space} "1 2 3 4"
+
+  debug $ parseOpt do {many $ noneOf vowels} "xyzaeixyz"
+

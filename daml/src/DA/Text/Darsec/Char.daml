@@ -1,0 +1,81 @@
+module DA.Text.Darsec.Char
+  ( module DA.Text.Darsec.Char
+  )
+where
+
+import           DA.Text                        ( implode
+                                                , explode
+                                                , isSpace
+                                                , isUpper
+                                                , isLower
+                                                , isAlphaNum
+                                                , isAlpha
+                                                , isDigit
+                                                )
+
+import           DA.Text.Darsec.Prim
+import           DA.MonadPlus
+
+
+oneOf : [Text] -> Parser Text
+oneOf cs = satisfy (`elem` cs)
+
+noneOf : [Text] -> Parser Text
+noneOf cs = satisfy (`notElem` cs)
+
+spaces : Parser ()
+spaces = skipMany space
+
+space : Parser Text
+space = satisfy isSpace
+
+newline : Parser Text
+newline = char "\n"
+
+crlf : Parser Text
+crlf = char "\r" *> char "\n"
+
+endOfLine : Parser Text
+endOfLine = newline <|> crlf
+
+tab : Parser Text
+tab = char "\t"
+
+upper : Parser Text
+upper = satisfy isUpper
+
+lower : Parser Text
+lower = satisfy isLower
+
+
+alphaNum : Parser Text
+alphaNum = satisfy isAlphaNum
+
+letter : Parser Text
+letter = satisfy isAlpha
+
+digit : Parser Text
+digit = satisfy isDigit
+
+char : Text -> Parser Text
+char c = satisfy (==c)
+
+anyChar : Parser Text
+anyChar = satisfy (const True)
+
+satisfy : (Text -> Bool) -> (Parser Text)
+satisfy test = Parser $ \input -> case (explode input) of
+  [] -> Empty Error
+  (c :: cs) | test c    -> Consumed (Ok c (implode cs))
+            | otherwise -> Empty Error
+
+string : Text -> Parser ()
+string "" = return ()
+string t =
+  let (c :: cs) = explode t
+  in  do
+        char c
+        string (implode cs)
+
+takeWhile : (Text -> Bool) -> Parser [Text]
+takeWhile = many1 . satisfy
