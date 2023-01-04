@@ -11,13 +11,7 @@ module DA.Text.Darsec.Combinator
     -- , sepEndBy, sepEndBy1
     -- , chainl, chainl1
     -- , chainr, chainr1
-    -- , eof
     , notFollowedBy
-
-    -- tricky combinators
-
-    -- , manyTill, lookAhead, anyToken
-    -- , parserTrace, parserTraced
     ) where
 
 import DA.Text.Darsec.Prim
