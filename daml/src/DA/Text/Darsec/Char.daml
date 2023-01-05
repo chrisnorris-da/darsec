@@ -1,5 +1,22 @@
 module DA.Text.Darsec.Char
-  ( module DA.Text.Darsec.Char
+  ( oneOf
+  , noneOf
+  , spaces
+  , space
+  , newline
+  , crlf
+  , endOfLine
+  , tab
+  , upper
+  , lower
+  , alphaNum
+  , letter
+  , digit
+  , char
+  , anyChar
+  , satisfy
+  , string
+  , takeWhile
   )
 where
 
@@ -15,13 +32,14 @@ import           DA.Text                        ( implode
 
 import           DA.Text.Darsec.Prim
 import           DA.MonadPlus
+import Prelude hiding                          (takeWhile)
 
 
-oneOf : [Text] -> Parser Text
-oneOf cs = satisfy (`elem` cs)
+oneOf : Text -> Parser Text
+oneOf cs = satisfy (`elem` explode cs)
 
-noneOf : [Text] -> Parser Text
-noneOf cs = satisfy (`notElem` cs)
+noneOf : Text -> Parser Text
+noneOf cs = satisfy (`notElem` explode cs)
 
 spaces : Parser ()
 spaces = skipMany space
@@ -33,7 +51,7 @@ newline : Parser Text
 newline = char "\n"
 
 crlf : Parser Text
-crlf = char "\r" *> char "\n"
+crlf = char "\r" >> char "\n"
 
 endOfLine : Parser Text
 endOfLine = newline <|> crlf
@@ -47,7 +65,6 @@ upper = satisfy isUpper
 lower : Parser Text
 lower = satisfy isLower
 
-
 alphaNum : Parser Text
 alphaNum = satisfy isAlphaNum
 
@@ -58,24 +75,25 @@ digit : Parser Text
 digit = satisfy isDigit
 
 char : Text -> Parser Text
-char c = satisfy (==c)
+char c = satisfy (== c)
 
 anyChar : Parser Text
 anyChar = satisfy (const True)
 
-satisfy : (Text -> Bool) -> (Parser Text)
-satisfy test = Parser $ \input -> case (explode input) of
+satisfy : (Text -> Bool) -> Parser Text
+satisfy test = Parser $ \input -> case explode input of
   [] -> Empty Error
   (c :: cs) | test c    -> Consumed (Ok c (implode cs))
             | otherwise -> Empty Error
 
-string : Text -> Parser ()
-string "" = return ()
+string : Text -> Parser [Text]
+string "" = return []
 string t =
   let (c :: cs) = explode t
   in  do
-        char c
-        string (implode cs)
+        x <- char c
+        y <- string (implode cs)
+        return (x::y)
 
 takeWhile : (Text -> Bool) -> Parser [Text]
 takeWhile = many1 . satisfy
