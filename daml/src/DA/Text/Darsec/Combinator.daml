@@ -1,16 +1,16 @@
 module DA.Text.Darsec.Combinator
-    ( --choice
-    -- , count
-    -- , between
-    -- , option, optionMaybe, optional
-      skipMany1
+    ( choice'
+     -- , count
+     -- , between
+     -- , option, optionMaybe, optional
+    , skipMany1
     , skipMany
     , many1
     , sepBy, sepBy1
-    -- , endBy, endBy1
-    -- , sepEndBy, sepEndBy1
-    -- , chainl, chainl1
-    -- , chainr, chainr1
+     -- , endBy, endBy1
+     -- , sepEndBy, sepEndBy1
+     -- , chainl, chainl1
+     -- , chainr, chainr1
     , notFollowedBy
     ) where
 
