@@ -4,7 +4,7 @@ module DA.Text.Darsec
     (<|>)
     , try'
     -- , unexpected
-    -- , choice
+    , choice'
     , many
     , many1
     , skipMany
