@@ -20,7 +20,7 @@ import           DA.MonadPlus
 import           DA.Alternative
 import           DA.Action                      ( void )
 
-data Parser s = Parser
+newtype Parser s = Parser
   { unP : Text -> Consumed s
   }
 
@@ -44,7 +44,7 @@ scan p f =
 many1 : Parser a -> Parser [a]
 many1 p = do
     x <- p;
-    xs <- (many1 p <|> return [])
+    xs <- many1 p <|> return []
     return (x::xs)
 
 skipMany : Parser a -> Parser()
@@ -54,13 +54,13 @@ skipMany1 : Parser a -> Parser ()
 skipMany1 = void . many1
 
 bind: Parser a -> (a -> Parser b) -> Parser b
-bind pb f = Parser $ \input -> case (p input) of
+bind pb f = Parser $ \input -> case p input of
   Empty reply1 -> case reply1 of
-    Ok x rest -> (unP (f x) rest)
+    Ok x rest -> unP (f x) rest
     Error     -> Empty Error
   Consumed reply1 -> Consumed
     (case reply1 of
-      Ok x rest -> case (unP (f x) rest) of
+      Ok x rest -> case unP (f x) rest of
         Consumed reply2 -> reply2
         Empty    reply2 -> reply2
       e12 -> Error
@@ -79,9 +79,9 @@ instance MonadPlus Parser where
     mplus p1 p2 = parserPlus p1 p2
 
 parserPlus : Parser a -> Parser a -> Parser a
-parserPlus p q = Parser $ \input -> case unP p $ input of
-  Empty Error -> unP q $ input
-  Empty ok    -> case unP q $ input of
+parserPlus p q = Parser $ \input -> case unP p input of
+  Empty Error -> unP q input
+  Empty ok    -> case unP q input of
     Empty _  -> Empty ok
     consumed -> consumed
   consumed -> consumed
@@ -106,7 +106,7 @@ parseOpt p inp = case unP p inp of
   Empty    Error      -> None
 
 try' : Parser a -> Parser a
-try' p = Parser $ \input -> case (unP p $ input) of
+try' p = Parser $ \input -> case unP p input of
                       Consumed Error -> Empty Error
                       other -> other
 
