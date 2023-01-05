@@ -1,20 +1,22 @@
 module DA.Text.Test
-  ( module DA.Text.Test
-  )
-where
+  ( testCsv
+  , testChar
+  , testCombinators
+  ) where
 
-import DA.Assert((===))
+import           DA.Assert                      ( (===) )
 import           DA.Text.Darsec                as D
-import           DA.Text                        (isDigit,  implode
-                                                , explode
-                                                )
+import           DA.Text                        ( implode )
 
 import           Daml.Script
 
 import           Prelude                 hiding ( takeWhile )
 
-vowels : [Text]
-vowels = explode "aeiou"
+import           DA.Optional                    ( catOptionals )
+import           DA.Foldable                    ( forA_ )
+
+vowels : Text
+vowels =  "aeiou"
 
 vowel : Parser Text
 vowel = oneOf vowels
@@ -23,7 +25,7 @@ word : Parser [Text]
 word = many1 letter
 
 identifier : Parser [Text]
-identifier = many1 (letter <|> digit <|> (char "_"))
+identifier = many1 (letter <|> digit <|> char "_")
 
 eof : Parser ()
 eof = notFollowedBy ( skipMany $ char "±")
@@ -35,52 +37,134 @@ csvFile : Parser [[Text]]
 csvFile =
     do result <- many line
        eof
-       return result
+       pure result
 
 line : Parser [Text]
 line =
     do result <- cells
        eol
-       return result
+       pure result
 
 cells : Parser [Text]
 cells =
     do first <- implode <$> cellContent
        next <- remainingCells
-       return (first :: next)
+       pure (first :: next)
 
 remainingCells : Parser [Text]
-remainingCells = (char "," >> cells) <|> (return [])
+remainingCells = (char "," >> cells) <|> pure []
 
 cellContent : Parser [Text]
 cellContent =
-    many (noneOf [",","\n"])
+    many (noneOf ",\n")
 
-testCsv : Script ()
-testCsv = script $
-  debug $ parseOpt csvFile "Login email,Identifier,One-time password,Recovery code,First name,Last name,Department,Location\nrachel@example.com,9012,12se74,rb9012,Rachel,Booker,Sales,Manchester\nlaura@example.com,2070,04ap67,lg2070,Laura,Grey,Depot,London\ncraig@example.com,4081,30no86,cj4081,Craig,Johnson,Depot,London\nmary@example.com,9346,14ju73,mj9346,Mary,Jenkins,Engineering,Manchester\njamie@example.com,5079,09ja61,js5079,Jamie,Smith,Engineering,Manchester\n"
+domain : Parser [Text]
+domain = do
+  many1 letter
+  char "@"
+  domain <- many1 letter
+  string ".com"
+  pure domain
 
+testCsv = script $ do
+  let (Some (parsedCsv,_)) = parseOpt csvFile "Login email,Identifier,One-time password,Recovery code,First name,Last name,Department,Location\nrachel@example.com,9012,12se74,rb9012,Rachel,Booker,Sales,Manchester\nlaura@example.com,2070,04ap67,lg2070,Laura,Grey,Depot,London\ncraig@example.com,4081,30no86,cj4081,Craig,Johnson,Depot,London\nmary@example.com,9346,14ju73,mj9346,Mary,Jenkins,Engineering,Manchester\njamie@example.com,5079,09ja61,js5079,Jamie,Smith,Engineering,Manchester\n"
+  forA_ (drop 1 parsedCsv) $
+    assert . all (== "example")
+     <$>
+    pure . implode . concatMap fst . catOptionals . (parseOpt domain <$>)
+
+testCombinators : Script ()
 testCombinators = script $ do
 
-  parseOpt do { x <- many1 (digit <|> letter); space; string "done";return x } "a1b2c3 done"
-   === Some (["a","1","b","2","c","3"],"")
+    -- choice'
+  debug $ parseOpt do { many1 $ choice' [digit, char "-"] } "-11--1+2"
+    -- , count
+    -- , between
+    -- , option, optionMaybe, optional
+  debug $ parseOpt do { skipMany digit } "abcde"
+  debug $ parseOpt do { skipMany1 digit } "abcde"
 
-  parse do { many1 (digit <|> letter); char ";"; many1 $ oneOf (explode "en") } "a12c3;end99"
-   === Ok with result = explode "en"; remain = "d99"
+  debug $ parseOpt do { many digit } "abcde"
+  debug $ parseOpt do { many1 digit } "abcde"
 
-  parse do { takeWhile isDigit } "1212end"
-    === Ok { result = explode "1212", remain = "end" }
+  debug $ parseOpt do { many1 digit `sepBy` char "-" } "12-34-56"
+  debug $ parseOpt do { many1 digit `sepBy1` char "-" } ""
 
-  parse do { word; space; word } "one two"
-    === Ok { result = explode "two", remain = "" }
+testChar : Script()
+testChar = script $ do
 
-  parse do { identifier; space; word } "e1_23cal second"
-   === Ok { result = ["s","e","c","o","n","d"], remain = "" }
+-- oneOf
+  parseOpt do { many1 $ oneOf "en" } "end99"
+   === Some (["e","n"],"d99")
 
-  parse do { sepBy1 digit space } "" === Error
-
-  parse do { sepBy1 digit space } "1 2 3 4"
-   === Ok { result = ["1","2","3","4"], remain = "" }
+-- noneOf
+  parseOpt do { many1 $ noneOf "en" } "99end"
+   === Some (["9","9"],"end")
 
   parseOpt do { many $ noneOf vowels } "xyza"
    === Some (["x","y","z"],"a")
+
+-- spaces(s)
+  parseOpt do { sepBy1 digit spaces} "1  2    3 4"
+   ===   Some (["1","2","3","4"],"")
+  parseOpt do { sepBy1 digit space} "1 2 3 4"
+   ===  Some (["1","2","3","4"],"")
+
+-- newline
+  parseOpt (sepBy1 digit space `sepBy1` newline) "3 2 1\n1 2 3"
+   === Some ([["3","2","1"],["1","2","3"]],"")
+
+-- crlf
+  parseOpt (sepBy1 digit space >> crlf) "1 2 3\r\n"
+   === Some ("\n","")
+
+  parseOpt (many digit `sepBy1` crlf) "123\r\n456"
+   === Some ([["1","2","3"],["4","5","6"]],"")
+
+  parseOpt (many digit `sepBy1` crlf) "1113\n456"
+   === Some ([["1","1","1","3"]],"\n456")
+
+-- endOfLine
+  parseOpt (sepBy1 digit space >> endOfLine) "1 2 3\r\n"
+   === Some ("\n","")
+
+  parseOpt (many digit `sepBy1` endOfLine) "123\r\n456"
+   === Some ([["1","2","3"],["4","5","6"]],"")
+
+  parseOpt (many digit `sepBy1` endOfLine) "123\n456"
+   === Some ([["1","2","3"],["4","5","6"]],"")
+
+-- tab
+  parseOpt (many digit `sepBy1` tab) "123\t456"
+   === Some ([["1","2","3"],["4","5","6"]],"")
+
+-- upper
+  parseOpt (many digit `sepBy1` upper) "123A456B789"
+   === Some ([["1","2","3"],["4","5","6"],["7","8","9"]],"")
+
+-- lower
+  parseOpt (many digit `sepBy1` lower) "123a456b789"
+   === Some ([["1","2","3"],["4","5","6"],["7","8","9"]],"")
+
+-- alphaNum
+  parseOpt (many (alphaNum <|> char "+") `sepBy1` space) "12+3a+45 6b789"
+   === Some ([["1","2","+","3","a","+","4","5"],["6","b","7","8","9"]],"")
+
+-- letter
+  parseOpt (many (letter <|> char "+") `sepBy1` space) "ab+ab+ AbC"
+   === Some ([["a","b","+","a","b","+"],["A","b","C"]],"")
+
+-- digit
+  parseOpt (many1 digit) "12+12"
+   === Some (["1","2"],"+12")
+
+-- anyChar
+  parseOpt (many1 anyChar) "abc123\n\t\r"
+    ===   Some (["a","b","c","1","2","3","\n","\t","\r"],"")
+
+-- string
+  parseOpt do { (string "second"<|> string "first") `sepBy` char "-" } "first-second-first-first"
+   ===  Some ([["f","i","r","s","t"],["s","e","c","o","n","d"],["f","i","r","s","t"],["f","i","r","s","t"]],"")
+
+-- takeWhile
+  parseOpt do { takeWhile (== ".")} "..OneTwo" === Some ([".","."],"OneTwo")
