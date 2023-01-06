@@ -1,11 +1,8 @@
 module DA.Text.Darsec.Prim
-
-  (
-    many
+  ( many
   , many1
   , scan
   , parse
-  , parseOpt
   , skipMany
   , skipMany1
   , try'
@@ -15,18 +12,33 @@ module DA.Text.Darsec.Prim
   )
 where
 
-import           Prelude                 hiding ( takeWhile )
+import           Prelude                       as P
+                                         hiding ( takeWhile )
 import           DA.MonadPlus
 import           DA.Alternative
 import           DA.Action                      ( void )
 
 newtype Parser s = Parser
-  { unP : Text -> Consumed s
-  }
+  { unP : Text -> Consumed s }
 
 data Consumed a = Consumed (Reply a) | Empty (Reply a) deriving (Show, Eq)
 
 data Reply a = Ok {result  : a, remain :  Text} | Error deriving (Show, Eq)
+
+instance (Monoid a) => Monoid (Reply a) where
+  mempty = Ok mempty ""
+
+instance Semigroup a => Semigroup (Reply a) where
+  (Ok r1 _) <> (Ok r2 rem) = Ok (r1 <> r2) rem
+  Error <> Error = Error
+  (Ok _ _) <> Error = Error
+  Error <> (Ok _ _)  = Error
+
+instance Semigroup a => Semigroup (Consumed a) where
+  (Consumed a) <> (Consumed b) = Consumed (a <> b)
+  (Consumed a) <> (Empty _) = Consumed a
+  (Empty a) <> (Consumed _) = Empty a
+  (Empty a) <> (Empty b)= Empty $ a <> b
 
 returnP : s -> Parser s
 returnP x = Parser $ \input -> Empty (Ok x input)
@@ -67,9 +79,30 @@ bind pb f = Parser $ \input -> case p input of
     )
   where p = unP pb
 
+instance Monoid a => Semigroup (Parser a) where
+
+    -- | Combines two parsers like '*>', '>>' and @do {...;...}@
+    --  /but/ also combines their results with (<>) instead of
+    --  discarding the first.
+    p1 <> p2 = Parser \i -> case unP p1 i of
+       Consumed r1@(Ok _ rem) -> Consumed $ r1 <>
+         (case unP p2 rem of
+          Consumed r2@(Ok _ _) -> r2
+          Consumed Error ->  Error
+          Empty _ -> mempty)
+       Empty r1@(Ok _ rem) -> Consumed $ r1 <>
+         (case unP p2 rem of
+          Consumed r2@(Ok _ _) -> r2
+          Consumed Error ->  Error
+          Empty _ -> mempty)
+       Consumed Error -> Consumed Error
+       Empty Error -> Empty Error
+
 instance Applicative Parser where
-  pure = returnP
-  (<*>) = ap
+    pure = returnP
+    (<*>) = ap
+    p1 *> p2 = p1 `bind` const p2
+    p1 <* p2 = do { x1 <- p1 ; void p2 ; return x1 }
 
 instance Action Parser where
  (>>=) = bind
@@ -93,16 +126,11 @@ instance Alternative Parser where
     empty = mzero
     (<|>) = mplus
 
-parse : Parser s -> Text -> Reply s
+parse : Parser a -> Text -> Optional (a, Text)
 parse p inp = case unP p inp of
-    Consumed a -> a
-    Empty a -> a
-
-parseOpt : Parser a -> Text -> Optional (a, Text)
-parseOpt p inp = case unP p inp of
-  Consumed o@(Ok a b) -> Some (a, b)
+  Consumed (Ok a b) -> Some (a, b)
   Consumed Error      -> None
-  Empty    o@(Ok a b) -> Some (a, b)
+  Empty    (Ok a b) -> Some (a, b)
   Empty    Error      -> None
 
 try' : Parser a -> Parser a
