@@ -18,7 +18,7 @@ module DA.Text.Darsec.Char
   , string
   , takeWhile
   )
-where
+  where
 
 import           DA.Text                        ( implode
                                                 , explode
@@ -32,7 +32,7 @@ import           DA.Text                        ( implode
 
 import           DA.Text.Darsec.Prim
 import           DA.MonadPlus
-import Prelude hiding                          (takeWhile)
+import           Prelude                 hiding ( takeWhile )
 
 
 oneOf : Text -> Parser Text
