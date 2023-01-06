@@ -2,35 +2,24 @@ module DA.Text.Darsec
 
     (
     (<|>)
-    , try'
-    -- , unexpected
+    , Parser
+    , Reply(..)
+    , between
     , choice'
+    , endBy
+    , endBy1
     , many
     , many1
-    , skipMany
-    , skipMany1
-    -- , count
-    -- , between
-    -- , option
-    -- , optionMaybe
-    -- , optional
+    , module DA.Text.Darsec.Char
+    , notFollowedBy
+    , parse
     , sepBy
     , sepBy1
-    -- , endBy
-    -- , endBy1
-    -- , sepEndBy
-    -- , sepEndBy1
-    -- , chainl
-    -- , chainl1
-    -- , chainr
-    -- , chainr1
-    , notFollowedBy
-    -- , manyTill
-    , module DA.Text.Darsec.Char
-    , Reply(..)
-    , parse
-    , parseOpt
-    , Parser
+    , sepEndBy
+    , sepEndBy1
+    , skipMany
+    , skipMany1
+    , try'
      ) where
 
 import DA.Alternative
